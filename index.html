@@ -237,8 +237,27 @@
         </main>
     </div>
 
-    <script>
-        // --- 1. MOCK DATA & STATE ---
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // Cấu hình SDK Firebase của bạn
+        const firebaseConfig = {
+            apiKey: "AIzaSyCMmNJbYWxSSWP08Q9duJHTQXfltFL2alA",
+            authDomain: "bao-cao-hoc-tap.firebaseapp.com",
+            databaseURL: "https://bao-cao-hoc-tap-default-rtdb.firebaseio.com",
+            projectId: "bao-cao-hoc-tap",
+            storageBucket: "bao-cao-hoc-tap.firebasestorage.app",
+            messagingSenderId: "442761230761",
+            appId: "1:442761230761:web:fdfa562c873e721f62acb8",
+            measurementId: "G-WDMQSXS88R"
+        };
+
+        // Khởi tạo ứng dụng Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Dữ liệu mẫu khởi tạo ban đầu khi DB trống
         const initialStudents = [
             {
                 id: 1,
@@ -270,7 +289,7 @@
 
         const state = {
             isAuthenticated: false,
-            userRole: null, // 'teacher' or 'parent'
+            userRole: null, // 'teacher' hoặc 'parent'
             students: [],
             activeStudentId: null,
             evalForm: { ability: '', attitudes: [] }
@@ -278,32 +297,41 @@
 
         let myChart = null;
 
-        // --- HÀM LƯU DỮ LIỆU ---
+        // Hàm đồng bộ dữ liệu cục bộ lên Firebase
         function saveData() {
-            localStorage.setItem('studentDashboardData', JSON.stringify(state.students));
+            set(ref(db, 'students'), state.students)
+                .catch(error => console.error("Lỗi cập nhật Firebase:", error));
         }
 
-        // --- 2. INITIALIZATION ---
-        window.onload = () => {
-            // Tải dữ liệu từ LocalStorage nếu có, nếu không thì dùng dữ liệu mẫu
-            const savedData = localStorage.getItem('studentDashboardData');
-            if (savedData) {
-                state.students = JSON.parse(savedData);
+        // Đặt ngày mặc định cho ô lịch
+        document.getElementById('input-eval-date').valueAsDate = new Date();
+
+        // LẮNG NGHE SỰ KIỆN DỮ LIỆU ĐỒNG BỘ THỜI GIAN THỰC TỪ FIREBASE
+        onValue(ref(db, 'students'), (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                state.students = Array.isArray(data) ? data : Object.values(data);
             } else {
                 state.students = initialStudents;
                 saveData();
             }
 
-            if(state.students.length > 0) {
-                state.activeStudentId = state.students[0].id;
+            // Đảm bảo cấu trúc mảng để không lỗi giao diện
+            state.students.forEach(s => {
+                if (!s.scores) s.scores = [];
+                if (!s.evaluations) s.evaluations = [];
+            });
+
+            if (state.students.length > 0) {
+                if (!state.activeStudentId || !state.students.find(s => s.id === state.activeStudentId)) {
+                    state.activeStudentId = state.students[0].id;
+                }
             }
 
-            // Đặt ngày mặc định cho form đánh giá
-            document.getElementById('input-eval-date').valueAsDate = new Date();
             renderApp();
-        };
+        });
 
-        // --- 3. AUTHENTICATION ---
+        // --- XỬ LÝ ĐĂNG NHẬP ---
         window.handleLogin = (e) => {
             e.preventDefault();
             const user = document.getElementById('login-username').value.trim();
@@ -317,7 +345,6 @@
                 errDiv.classList.add('hide');
                 renderApp();
             } else {
-                // Check parent
                 const student = state.students.find(s => s.parentUsername === user && s.parentPassword === pass);
                 if (student) {
                     state.userRole = 'parent';
@@ -339,7 +366,7 @@
             renderApp();
         };
 
-        // --- 4. RENDER LOGIC ---
+        // --- RENDER GIAO DIỆN ---
         function renderApp() {
             if (state.isAuthenticated) {
                 document.getElementById('login-screen').classList.add('hide');
@@ -356,7 +383,7 @@
         }
 
         function calculateAverage(scores) {
-            if (scores.length === 0) return 0;
+            if (!scores || scores.length === 0) return 0;
             const sum = scores.reduce((acc, curr) => acc + curr.score, 0);
             return (sum / scores.length).toFixed(1);
         }
@@ -365,7 +392,6 @@
             const student = getActiveStudent();
             if (!student) return;
 
-            // Render Teacher Tabs if teacher
             const tabsContainer = document.getElementById('teacher-tabs-container');
             if (state.userRole === 'teacher') {
                 tabsContainer.classList.remove('hide');
@@ -374,7 +400,6 @@
                 tabsContainer.classList.add('hide');
             }
 
-            // Update Header
             document.getElementById('header-student-name').innerText = student.name;
             document.getElementById('header-student-subject').innerText = student.subject;
             document.getElementById('header-student-class').innerText = student.className;
@@ -382,7 +407,6 @@
             const avg = calculateAverage(student.scores);
             document.getElementById('header-avg-score').innerText = avg;
 
-            // Role Badges & Controls
             const roleBadge = document.getElementById('role-badge');
             const editBtn = document.getElementById('btn-edit-student');
             const parentConfig = document.getElementById('parent-config-card');
@@ -395,7 +419,6 @@
                 document.getElementById('parent-username').innerText = student.parentUsername;
                 document.getElementById('parent-password').innerText = student.parentPassword;
                 
-                // Show Forms
                 document.getElementById('teacher-score-form').classList.remove('hide');
                 document.getElementById('teacher-eval-form').classList.remove('hide');
                 document.getElementById('score-card-title').innerText = "Quản Lý Điểm Số";
@@ -405,7 +428,6 @@
                 editBtn.classList.add('hide');
                 parentConfig.classList.add('hide');
                 
-                // Hide Forms
                 document.getElementById('teacher-score-form').classList.add('hide');
                 document.getElementById('teacher-eval-form').classList.add('hide');
                 document.getElementById('score-card-title').innerText = "Chi Tiết Điểm Số";
@@ -421,20 +443,18 @@
         function renderTabs() {
             const tabsDiv = document.getElementById('student-tabs');
             let html = '';
-            
             state.students.forEach(s => {
                 const isActive = s.id === state.activeStudentId;
                 const activeClass = isActive ? 'bg-indigo-600 text-white shadow-md border-indigo-600' : 'bg-white text-slate-600 hover:bg-slate-100 border-slate-200';
                 html += `<button onclick="window.switchTab(${s.id})" class="whitespace-nowrap px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 border ${activeClass}"><i class="fa-solid fa-user"></i> ${s.name}</button>`;
             });
-            
             html += `<button onclick="window.addStudent()" class="whitespace-nowrap px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 bg-slate-200 text-slate-700 hover:bg-slate-300 border border-transparent border-dashed ml-2"><i class="fa-solid fa-user-plus"></i> Thêm Học Sinh</button>`;
             tabsDiv.innerHTML = html;
         }
 
         function renderScoreList(scores) {
             const listDiv = document.getElementById('score-list');
-            if (scores.length === 0) {
+            if (!scores || scores.length === 0) {
                 listDiv.innerHTML = `<p class="text-sm text-slate-500 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">Chưa có bài kiểm tra nào.</p>`;
                 return;
             }
@@ -455,7 +475,6 @@
         }
 
         function renderEvalFormTags() {
-            // Render Abilities
             let abilityHtml = '';
             tagsData.abilities.forEach(ab => {
                 const isSelected = state.evalForm.ability === ab;
@@ -464,7 +483,6 @@
             });
             document.getElementById('ability-tags').innerHTML = abilityHtml;
 
-            // Render Attitudes
             let attHtml = '';
             tagsData.attitudes.forEach(att => {
                 const isSelected = state.evalForm.attitudes.includes(att);
@@ -476,7 +494,7 @@
 
         function renderEvalList(evals) {
             const listDiv = document.getElementById('eval-list');
-            if (evals.length === 0) {
+            if (!evals || evals.length === 0) {
                 listDiv.innerHTML = `<p class="text-sm text-slate-500 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">Chưa có nhận xét nào.</p>`;
                 return;
             }
@@ -487,15 +505,16 @@
                 const realIndex = evals.length - 1 - revIndex;
                 let deleteBtn = state.userRole === 'teacher' ? `<button onclick="window.deleteEvaluation(${realIndex})" class="text-slate-400 hover:text-red-500 transition-colors p-1.5 hover:bg-red-50 rounded-md" title="Xóa"><i class="fa-solid fa-trash"></i></button>` : '';
                 
-                // Format date manually if needed
                 let d = new Date(item.date);
                 let dateStr = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
 
                 let tagsHtml = '';
                 if(item.ability) tagsHtml += `<span class="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">${item.ability}</span>`;
-                item.attitudes.forEach(att => {
-                    tagsHtml += `<span class="text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200">${att}</span>`;
-                });
+                if(item.attitudes) {
+                    item.attitudes.forEach(att => {
+                        tagsHtml += `<span class="text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200">${att}</span>`;
+                    });
+                }
 
                 html += `
                     <div class="p-4 bg-white rounded-xl border border-slate-200 shadow-sm relative hover:border-indigo-200 transition-colors">
@@ -510,7 +529,7 @@
             listDiv.innerHTML = html;
         }
 
-        // --- 5. ACTIONS & MUTATIONS ---
+        // --- CÁC HÀM SỰ KIỆN TOÀN CỤC ---
         window.switchTab = (id) => {
             state.activeStudentId = id;
             renderDashboard();
@@ -539,8 +558,8 @@
             
             state.students.push(newStudent);
             state.activeStudentId = newStudent.id;
-            saveData(); // Lưu ngay vào bộ nhớ
             
+            saveData();
             alert(`Đã thêm học sinh thành công!\n\nTài khoản phụ huynh là: ${defaultUsername}\nMật khẩu: 123`);
             renderDashboard();
         };
@@ -630,7 +649,6 @@
                 comment: comment
             });
 
-            // Reset form
             state.evalForm = { ability: '', attitudes: [] };
             document.getElementById('input-eval-comment').value = '';
             
@@ -651,11 +669,9 @@
             }
         };
 
-        // --- 6. CHART.JS INTEGRATION ---
+        // --- CẤU HÌNH BIỂU ĐỒ CHART.JS ---
         function renderChart(scores, avg) {
             const ctx = document.getElementById('scoreChart').getContext('2d');
-            
-            // Hủy chart cũ nếu đã tồn tại để vẽ lại
             if (myChart) myChart.destroy();
 
             const labels = scores.map(s => s.name);
@@ -673,7 +689,7 @@
                         borderWidth: 3,
                         pointRadius: 5,
                         pointHoverRadius: 8,
-                        tension: 0.2 // Bo cong đường line nhẹ
+                        tension: 0.2
                     }]
                 },
                 options: {
@@ -707,7 +723,6 @@
                     }
                 }
             };
-
             myChart = new Chart(ctx, config);
         }
     </script>
