@@ -1,0 +1,1026 @@
+import React, { useState, useMemo } from 'react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceLine,
+} from 'recharts';
+import { 
+  GraduationCap, 
+  TrendingUp, 
+  BookOpen, 
+  MessageSquare, 
+  Save, 
+  PlusCircle,
+  AlertCircle,
+  CheckCircle2,
+  Trash2,
+  Calendar,
+  Users,
+  Lock,
+  User,
+  LogOut,
+  UserPlus,
+  Key,
+  Settings,
+  Pencil
+} from 'lucide-react';
+
+// --- INITIAL MOCK DATA ---
+const initialStudents = [
+  {
+    id: 1,
+    name: 'Quang Đạo',
+    className: '12A1',
+    subject: 'Toán',
+    parentName: 'Phụ huynh Quang Đạo',
+    parentUsername: 'ph_quangdao',
+    parentPassword: '123',
+    scores: [
+      { name: 'Khảo sát đầu năm', score: 6.5 },
+      { name: 'Giữa kì 1', score: 8.0 }
+    ],
+    evaluations: [
+      {
+        date: '2023-09-15',
+        ability: 'Tiếp thu nhanh',
+        attitudes: ['Tự giác chăm chỉ', 'Hăng hái phát biểu'],
+        comment: 'Em Đạo có khởi đầu rất tốt, cần phát huy.'
+      }
+    ]
+  }
+];
+
+const learningAbilities = [
+  'Tiếp thu nhanh',
+  'Trung bình',
+  'Cần giảng lại nhiều lần'
+];
+
+const attitudes = [
+  'Tự giác chăm chỉ',
+  'Hăng hái phát biểu',
+  'Còn mất tập trung',
+  'Cần nhắc nhở'
+];
+
+export default function App() {
+  // --- STATE MANAGEMENT ---
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  
+  // Role Management
+  const [userRole, setUserRole] = useState(null); // 'teacher' hoặc 'parent'
+
+  // Data State (Multi-students)
+  const [students, setStudents] = useState(initialStudents);
+  const [activeStudentId, setActiveStudentId] = useState(initialStudents[0].id);
+
+  // Add Student Modal State
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ name: '', subject: '', className: '', parentName: '' });
+
+  // Edit Student Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', subject: '', className: '', parentName: '' });
+
+  // Form States (Quantitative)
+  const [newTestName, setNewTestName] = useState('');
+  const [newScore, setNewScore] = useState('');
+  const [scoreError, setScoreError] = useState('');
+
+  // Form States (Qualitative)
+  const [evalDate, setEvalDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedAbility, setSelectedAbility] = useState('');
+  const [selectedAttitudes, setSelectedAttitudes] = useState([]);
+  const [teacherComment, setTeacherComment] = useState('');
+  
+  // UI State
+  const [saveStatus, setSaveStatus] = useState(null);
+
+  // Derived State for Current Active Student
+  const activeStudent = students.find(s => s.id === activeStudentId) || students[0];
+  const scores = activeStudent ? activeStudent.scores : [];
+  const evaluations = activeStudent ? activeStudent.evaluations : [];
+
+  // --- CALCULATIONS ---
+  const averageScore = useMemo(() => {
+    if (scores.length === 0) return 0;
+    const sum = scores.reduce((acc, curr) => acc + curr.score, 0);
+    return (sum / scores.length).toFixed(1);
+  }, [scores]);
+
+  // --- HANDLERS ---
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setLoginError('');
+    
+    // Check Teacher Account
+    if (loginUsername === 'giaovien' && loginPassword === '123') {
+      setUserRole('teacher');
+      setIsAuthenticated(true);
+      if (students.length > 0) setActiveStudentId(students[0].id);
+    } else {
+      // Check Parent Dynamic Accounts
+      const foundStudent = students.find(
+        s => s.parentUsername === loginUsername && s.parentPassword === loginPassword
+      );
+      
+      if (foundStudent) {
+        setUserRole('parent');
+        setActiveStudentId(foundStudent.id);
+        setIsAuthenticated(true);
+      } else {
+        setLoginError('Sai tài khoản hoặc mật khẩu!');
+      }
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setUserRole(null);
+    setLoginUsername('');
+    setLoginPassword('');
+  };
+
+  // --- STUDENT & PARENT ACCOUNT MANAGEMENT ---
+  const handleOpenAddModal = () => {
+    setAddForm({ name: '', subject: '', className: '', parentName: '' });
+    setIsAddModalOpen(true);
+  };
+
+  const submitAddStudent = (e) => {
+    e.preventDefault();
+    const { name, subject, className, parentName } = addForm;
+    if (!name.trim()) return;
+    
+    const newId = Date.now();
+    
+    // Auto-generate parent username (e.g., ph_nguyenvanb)
+    const normalizedName = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s/g, '');
+    const defaultUsername = `ph_${normalizedName}`;
+    
+    const newStudent = {
+      id: newId,
+      name: name.trim(),
+      subject: subject.trim() || 'Chưa cập nhật',
+      className: className.trim() || 'Chưa xếp lớp',
+      parentName: parentName.trim() || 'Chưa cập nhật',
+      parentUsername: defaultUsername,
+      parentPassword: '123', // Default password
+      scores: [],
+      evaluations: []
+    };
+    
+    setStudents([...students, newStudent]);
+    setActiveStudentId(newId); // Auto switch to new tab
+    setIsAddModalOpen(false);
+  };
+
+  const handleOpenEditModal = () => {
+    if (!activeStudent) return;
+    setEditForm({
+      name: activeStudent.name,
+      subject: activeStudent.subject || '',
+      className: activeStudent.className || '',
+      parentName: activeStudent.parentName || ''
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const submitEditStudent = (e) => {
+    e.preventDefault();
+    const { name, subject, className, parentName } = editForm;
+    if (!name.trim()) return;
+
+    setStudents(prev => prev.map(s => {
+      if (s.id === activeStudentId) {
+        return {
+          ...s,
+          name: name.trim(),
+          subject: subject.trim() || 'Chưa cập nhật',
+          className: className.trim() || 'Chưa xếp lớp',
+          parentName: parentName.trim() || 'Chưa cập nhật'
+        };
+      }
+      return s;
+    }));
+    setIsEditModalOpen(false);
+  };
+
+  const handleEditParentAuth = () => {
+    if (!activeStudent) return;
+    const newUsername = prompt("Nhập tài khoản phụ huynh mới:", activeStudent.parentUsername);
+    if (!newUsername) return;
+    
+    const newPassword = prompt("Nhập mật khẩu mới:", activeStudent.parentPassword);
+    if (!newPassword) return;
+    
+    setStudents(prev => prev.map(s => 
+      s.id === activeStudentId ? { ...s, parentUsername: newUsername, parentPassword: newPassword } : s
+    ));
+    alert("Đã cập nhật thông tin đăng nhập cho phụ huynh!");
+  };
+
+  // --- SCORE HANDLERS ---
+  const handleAddScore = (e) => {
+    e.preventDefault();
+    setScoreError('');
+
+    if (!newTestName.trim()) {
+      setScoreError('Vui lòng nhập tên bài kiểm tra.');
+      return;
+    }
+    
+    const parsedScore = parseFloat(newScore);
+    if (isNaN(parsedScore) || parsedScore < 0 || parsedScore > 10) {
+      setScoreError('Điểm số phải là số từ 0 đến 10.');
+      return;
+    }
+
+    setStudents(prev => prev.map(s => {
+      if (s.id === activeStudentId) {
+        return { ...s, scores: [...s.scores, { name: newTestName, score: parsedScore }] };
+      }
+      return s;
+    }));
+    
+    setNewTestName('');
+    setNewScore('');
+  };
+
+  const handleRemoveScore = (indexToRemove) => {
+    setStudents(prev => prev.map(s => {
+      if (s.id === activeStudentId) {
+        return { ...s, scores: s.scores.filter((_, i) => i !== indexToRemove) };
+      }
+      return s;
+    }));
+  };
+
+  // --- EVALUATION HANDLERS ---
+  const toggleAttitude = (attitude) => {
+    if (selectedAttitudes.includes(attitude)) {
+      setSelectedAttitudes(selectedAttitudes.filter(a => a !== attitude));
+    } else {
+      setSelectedAttitudes([...selectedAttitudes, attitude]);
+    }
+  };
+
+  const handleSaveEvaluation = () => {
+    if (!selectedAbility && selectedAttitudes.length === 0 && !teacherComment.trim()) {
+      alert('Vui lòng nhập ít nhất một thông tin đánh giá!');
+      return;
+    }
+
+    setSaveStatus('saving');
+    setTimeout(() => {
+      const newEval = {
+        date: evalDate,
+        ability: selectedAbility,
+        attitudes: selectedAttitudes,
+        comment: teacherComment
+      };
+
+      setStudents(prev => prev.map(s => {
+        if (s.id === activeStudentId) {
+          return { ...s, evaluations: [...s.evaluations, newEval] };
+        }
+        return s;
+      }));
+      
+      setSaveStatus('success');
+      setSelectedAbility('');
+      setSelectedAttitudes([]);
+      setTeacherComment('');
+      setTimeout(() => setSaveStatus(null), 3000);
+    }, 800);
+  };
+
+  const handleRemoveEvaluation = (indexToRemove) => {
+     setStudents(prev => prev.map(s => {
+      if (s.id === activeStudentId) {
+        return { ...s, evaluations: s.evaluations.filter((_, i) => i !== indexToRemove) };
+      }
+      return s;
+    }));
+  };
+
+  // --- CUSTOM COMPONENTS ---
+  const SectionCard = ({ title, icon: Icon, children, className = '' }) => (
+    <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col ${className}`}>
+      <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-3 bg-gray-50/50">
+        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
+          <Icon size={20} />
+        </div>
+        <h2 className="text-lg font-bold text-gray-800">{title}</h2>
+      </div>
+      <div className="p-6 flex-1 flex flex-col">
+        {children}
+      </div>
+    </div>
+  );
+
+  const Tag = ({ label, selected, onClick, type = 'radio' }) => {
+    const isSelected = selected;
+    const baseClasses = "px-4 py-2 rounded-full text-sm font-medium border transition-all duration-200 cursor-pointer";
+    const selectedClasses = "bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm ring-1 ring-indigo-500/20";
+    const unselectedClasses = "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50";
+
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${baseClasses} ${isSelected ? selectedClasses : unselectedClasses}`}
+      >
+        {label}
+      </button>
+    );
+  };
+
+  // --- RENDER LOGIN SCREEN ---
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full border border-slate-100">
+          <div className="flex flex-col items-center mb-8">
+            <div className="bg-indigo-100 p-3 rounded-full text-indigo-600 mb-3">
+              <GraduationCap size={32} />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800 text-center">Cổng Đánh Giá Học Tập</h1>
+            <p className="text-slate-500 text-sm mt-2 text-center">Đăng nhập để xem hoặc quản lý hồ sơ học sinh</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Tài khoản</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <User size={18} />
+                </div>
+                <input 
+                  type="text" 
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  placeholder="VD: nguyenvana"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <Lock size={18} />
+                </div>
+                <input 
+                  type="password" 
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            {loginError && (
+              <div className="text-sm text-red-500 flex items-center gap-1.5 p-2 bg-red-50 rounded-lg">
+                <AlertCircle size={16} />
+                {loginError}
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-sm flex justify-center items-center gap-2 mt-2"
+            >
+              Đăng Nhập
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDER MAIN DASHBOARD ---
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans p-4 md:p-8">
+      
+      {/* ----------------------------- */}
+      {/* STUDENT TABS (TEACHER ONLY)   */}
+      {/* ----------------------------- */}
+      {userRole === 'teacher' && (
+        <div className="max-w-7xl mx-auto mb-6">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+            {students.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setActiveStudentId(s.id)}
+                className={`whitespace-nowrap px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 border
+                  ${activeStudentId === s.id 
+                    ? 'bg-indigo-600 text-white shadow-md border-indigo-600' 
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border-slate-200'}`}
+              >
+                <User size={16} />
+                {s.name}
+              </button>
+            ))}
+            <button
+              onClick={handleOpenAddModal}
+              className="whitespace-nowrap px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 bg-slate-200 text-slate-700 hover:bg-slate-300 border border-transparent border-dashed hover:border-slate-400 ml-2 shadow-inner"
+            >
+              <UserPlus size={16} />
+              Thêm Học Sinh
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Header Section */}
+      <header className="max-w-7xl mx-auto mb-8 bg-white p-5 lg:p-6 rounded-2xl shadow-sm border border-slate-100">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          
+          {/* Profile Header */}
+          <div className="flex items-center gap-4 lg:gap-5">
+            <div className="h-14 w-14 lg:h-16 lg:w-16 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 shadow-inner">
+              <GraduationCap size={32} className="lg:w-9 lg:h-9" />
+            </div>
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-extrabold text-slate-900 flex items-center gap-3">
+                {activeStudent?.name || 'Đang tải...'}
+                {userRole === 'teacher' && (
+                  <button 
+                    onClick={handleOpenEditModal} 
+                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
+                    title="Chỉnh sửa thông tin học sinh"
+                  >
+                    <Pencil size={20} />
+                  </button>
+                )}
+              </h1>
+              <p className="text-slate-500 mt-1 font-medium flex flex-wrap items-center gap-2 text-sm lg:text-base">
+                Lớp: <span className="font-bold text-indigo-600 px-2 py-0.5 bg-indigo-50 rounded-md">{activeStudent?.className}</span> |
+                Môn: <span className="font-bold text-emerald-600 px-2 py-0.5 bg-emerald-50 rounded-md">{activeStudent?.subject || 'Chưa cập nhật'}</span> |
+                Phụ huynh: <span className="font-bold text-amber-600 px-2 py-0.5 bg-amber-50 rounded-md">{activeStudent?.parentName || 'Chưa cập nhật'}</span>
+              </p>
+            </div>
+          </div>
+      
+          {/* Quick Stats & Actions Header */}
+          <div className="flex flex-col lg:flex-row gap-4 lg:items-center">
+            
+            {/* PARENT ACCOUNT CONFIG (TEACHER ONLY) */}
+            {userRole === 'teacher' && activeStudent && (
+              <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl flex items-center justify-between lg:justify-start gap-3 shadow-sm flex-1 lg:flex-none">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-amber-100 rounded-lg text-amber-700 hidden sm:block">
+                    <Key size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] lg:text-[11px] text-amber-700 font-bold uppercase tracking-wider">Tài khoản Phụ Huynh</p>
+                    <p className="text-xs lg:text-sm font-medium text-amber-900">
+                      TK: <span className="font-bold">{activeStudent.parentUsername}</span> | MK: <span className="font-bold">{activeStudent.parentPassword}</span>
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleEditParentAuth}
+                  className="p-1.5 bg-white text-amber-600 hover:bg-amber-100 hover:text-amber-700 rounded-lg shadow-sm transition-colors border border-amber-100"
+                  title="Chỉnh sửa tài khoản phụ huynh"
+                >
+                  <Settings size={16} />
+                </button>
+              </div>
+            )}
+
+            {/* Global Stats */}
+            <div className="hidden sm:flex gap-4">
+              <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex items-center gap-3">
+                <div>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Điểm TB</p>
+                  <p className="text-xl font-bold text-indigo-600 leading-none mt-1">{averageScore}</p>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500">
+                  <TrendingUp size={16} />
+                </div>
+              </div>
+            </div>
+
+            {/* ACCOUNT INFO & LOGOUT */}
+            <div className="bg-slate-100 p-1.5 rounded-xl flex items-center justify-between lg:justify-start shadow-inner">
+              <div className="px-4 py-2 flex items-center gap-2">
+                {userRole === 'teacher' ? (
+                  <span className="text-indigo-700 font-bold flex items-center gap-2 text-sm"><GraduationCap size={18} /> Giáo Viên</span>
+                ) : (
+                  <span className="text-emerald-700 font-bold flex items-center gap-2 text-sm"><Users size={18} /> Phụ Huynh</span>
+                )}
+              </div>
+              <button 
+                onClick={handleLogout}
+                className="px-3 py-1.5 bg-white text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg text-sm font-bold transition-all shadow-sm border border-slate-200 hover:border-red-200 flex items-center gap-1.5 ml-2"
+              >
+                <LogOut size={16} />
+                Thoát
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </header>
+
+      {/* Main Layout Grid */}
+      <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* =========================================
+            LEFT COLUMN: QUANTITATIVE (Chart & Input)
+            ========================================= */}
+        <div className="lg:col-span-7 space-y-6">
+          
+          {/* Chart Card */}
+          <SectionCard title="Tiến Độ Học Tập (Định Lượng)" icon={TrendingUp}>
+            <div className="h-[320px] w-full mt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={scores} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    domain={[0, 10]} 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    dx={-10}
+                  />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    itemStyle={{ color: '#4f46e5', fontWeight: 'bold' }}
+                  />
+                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                  
+                  <Line 
+                    type="monotone" 
+                    name="Điểm số"
+                    dataKey="score" 
+                    stroke="#4f46e5" 
+                    strokeWidth={3}
+                    dot={{ r: 6, fill: '#4f46e5', strokeWidth: 2, stroke: '#fff' }}
+                    activeDot={{ r: 8, strokeWidth: 0 }}
+                  />
+                  
+                  {scores.length > 0 && (
+                     <ReferenceLine 
+                       y={averageScore} 
+                       stroke="#f59e0b" 
+                       strokeDasharray="5 5" 
+                       strokeWidth={2}
+                       label={{ 
+                         position: 'top', 
+                         value: `TB: ${averageScore}`, 
+                         fill: '#f59e0b', 
+                         fontSize: 13,
+                         fontWeight: 'bold'
+                       }} 
+                     />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </SectionCard>
+
+          {/* Add Score Form & History */}
+          <SectionCard title={userRole === 'teacher' ? "Quản Lý Điểm Số" : "Chi Tiết Điểm Số"} icon={userRole === 'teacher' ? PlusCircle : BookOpen}>
+            
+            {/* Form nhập điểm (Chỉ hiện cho Giáo Viên) */}
+            {userRole === 'teacher' && (
+              <div className="mb-8 pb-6 border-b border-gray-100">
+                <form onSubmit={handleAddScore} className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                  <div className="flex-1 w-full">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tên bài kiểm tra</label>
+                    <input 
+                      type="text" 
+                      value={newTestName}
+                      onChange={(e) => setNewTestName(e.target.value)}
+                      placeholder="VD: Kiểm tra 15 phút..."
+                      className="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                    />
+                  </div>
+                  <div className="w-full sm:w-32">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Điểm số</label>
+                    <input 
+                      type="number" 
+                      step="0.1"
+                      min="0"
+                      max="10"
+                      value={newScore}
+                      onChange={(e) => setNewScore(e.target.value)}
+                      placeholder="0 - 10"
+                      className="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg px-6 py-2.5 transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                  >
+                    <PlusCircle size={18} />
+                    Thêm Điểm
+                  </button>
+                </form>
+                {scoreError && (
+                  <div className="mt-3 text-sm text-red-500 flex items-center gap-1.5">
+                    <AlertCircle size={16} />
+                    {scoreError}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Lịch sử điểm đã nhập */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wide">
+                Lịch sử điểm đã nhập
+              </h3>
+              {scores.length === 0 ? (
+                <p className="text-sm text-slate-500 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                  Chưa có bài kiểm tra nào được nhập.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                  {scores.map((item, index) => (
+                    <div 
+                      key={index} 
+                      className="flex justify-between items-center p-3 bg-white rounded-lg border border-slate-200 shadow-sm hover:border-indigo-200 transition-colors"
+                    >
+                      <span className="font-medium text-slate-700">{item.name}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-md">
+                          {item.score}
+                        </span>
+                        
+                        {userRole === 'teacher' && (
+                          <button 
+                            onClick={() => handleRemoveScore(index)}
+                            className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                            title="Xóa bài kiểm tra"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </SectionCard>
+
+        </div>
+
+        {/* =========================================
+            RIGHT COLUMN: QUALITATIVE (Evaluation)
+            ========================================= */}
+        <div className="lg:col-span-5 h-full">
+          <SectionCard title={userRole === 'teacher' ? "Đánh Giá Học Sinh" : "Nhận Xét Từ Giáo Viên"} icon={MessageSquare} className="h-full">
+            
+            {/* Form Đánh Giá (Chỉ hiện cho Giáo Viên) */}
+            {userRole === 'teacher' && (
+              <div className="mb-8 pb-6 border-b border-gray-100 flex flex-col gap-6">
+                <div className="space-y-6">
+                  {/* Ngày đánh giá */}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wide flex items-center gap-2">
+                      <Calendar size={16} className="text-indigo-500" /> Chọn Ngày Nhận Xét
+                    </label>
+                    <input 
+                      type="date" 
+                      value={evalDate}
+                      onChange={(e) => setEvalDate(e.target.value)}
+                      className="w-full rounded-xl border-slate-300 border px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-slate-50/50 hover:bg-white cursor-pointer font-medium text-slate-700"
+                    />
+                  </div>
+
+                  {/* Learning Ability */}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wide">
+                      Khả Năng Tiếp Thu
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {learningAbilities.map(ability => (
+                        <Tag 
+                          key={ability}
+                          label={ability}
+                          selected={selectedAbility === ability}
+                          onClick={() => setSelectedAbility(ability)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Attitude */}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wide">
+                      Ý Thức Học Tập <span className="text-slate-400 font-normal text-xs normal-case">(Chọn nhiều)</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {attitudes.map(attitude => (
+                        <Tag 
+                          key={attitude}
+                          label={attitude}
+                          selected={selectedAttitudes.includes(attitude)}
+                          onClick={() => toggleAttitude(attitude)}
+                          type="checkbox"
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Detailed Comments */}
+                  <div className="flex flex-col">
+                    <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                      Nhận Xét Của Giáo Viên
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={teacherComment}
+                      onChange={(e) => setTeacherComment(e.target.value)}
+                      placeholder="Nhập những nhận xét chi tiết..."
+                      className="w-full rounded-xl border-slate-300 border p-4 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-y min-h-[100px] bg-slate-50/50"
+                    ></textarea>
+                  </div>
+                </div>
+
+                {/* Save Action */}
+                <div className="flex items-center justify-between">
+                  {saveStatus === 'success' ? (
+                     <span className="text-emerald-600 flex items-center gap-2 text-sm font-medium">
+                       <CheckCircle2 size={18} />
+                       Đã lưu thành công!
+                     </span>
+                  ) : (
+                    <span className="text-sm text-slate-400 italic">Lưu vào hồ sơ.</span>
+                  )}
+                  
+                  <button 
+                    onClick={handleSaveEvaluation}
+                    disabled={saveStatus === 'saving'}
+                    className={`
+                      flex items-center gap-2 font-medium rounded-lg px-6 py-2.5 transition-all
+                      ${saveStatus === 'saving' 
+                        ? 'bg-indigo-400 cursor-not-allowed' 
+                        : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-md'} 
+                      text-white
+                    `}
+                  >
+                    {saveStatus === 'saving' ? (
+                       <span className="animate-spin inline-block w-5 h-5 border-[2px] border-current border-t-transparent text-white rounded-full mx-1"></span>
+                    ) : (
+                      <Save size={18} />
+                    )}
+                    {saveStatus === 'saving' ? 'Đang lưu...' : 'Lưu Đánh Giá'}
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Lịch sử nhận xét theo ngày */}
+            <div className="flex-1 flex flex-col">
+              <h3 className="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wide">
+                Lịch sử nhận xét
+              </h3>
+              {evaluations.length === 0 ? (
+                <p className="text-sm text-slate-500 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                  Chưa có nhận xét nào được lưu.
+                </p>
+              ) : (
+                <div className="space-y-3 flex-1 overflow-y-auto pr-2 max-h-[500px] custom-scrollbar">
+                  {evaluations.slice().reverse().map((item, index) => (
+                    <div 
+                      key={index} 
+                      className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm relative group hover:border-indigo-200 transition-colors"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="font-bold text-indigo-700 flex items-center gap-2 text-sm bg-indigo-50 px-3 py-1 rounded-md">
+                          <Calendar size={14} />
+                          {new Date(item.date).toLocaleDateString('vi-VN')}
+                        </span>
+                        
+                        {userRole === 'teacher' && (
+                          <button 
+                            onClick={() => handleRemoveEvaluation(evaluations.length - 1 - index)}
+                            className="text-slate-400 hover:text-red-500 transition-colors p-1.5 hover:bg-red-50 rounded-md"
+                            title="Xóa nhận xét"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                      
+                      {(item.ability || item.attitudes.length > 0) && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {item.ability && (
+                             <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
+                               {item.ability}
+                             </span>
+                          )}
+                          {item.attitudes.map(att => (
+                             <span key={att} className="text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                               {att}
+                             </span>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {item.comment && (
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
+                          {item.comment}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </SectionCard>
+        </div>
+
+      </main>
+      
+      {/* Ẩn scrollbar mặc định xấu xí */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: #cbd5e1;
+          border-radius: 20px;
+        }
+      `}} />
+
+      {/* MODAL THÊM HỌC SINH */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                <UserPlus size={20} className="text-indigo-600" /> Thêm Học Sinh Mới
+              </h3>
+              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl font-bold">
+                ✕
+              </button>
+            </div>
+            <form onSubmit={submitAddStudent} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Tên học sinh <span className="text-red-500">*</span></label>
+                <input 
+                  autoFocus
+                  type="text" 
+                  required
+                  value={addForm.name}
+                  onChange={e => setAddForm({...addForm, name: e.target.value})}
+                  className="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  placeholder="VD: Nguyễn Văn A"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Môn học</label>
+                <input 
+                  type="text" 
+                  value={addForm.subject}
+                  onChange={e => setAddForm({...addForm, subject: e.target.value})}
+                  className="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  placeholder="VD: Toán, Ngữ Văn..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Lớp</label>
+                <input 
+                  type="text" 
+                  value={addForm.className}
+                  onChange={e => setAddForm({...addForm, className: e.target.value})}
+                  className="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  placeholder="VD: 10A1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Tên phụ huynh</label>
+                <input 
+                  type="text" 
+                  value={addForm.parentName}
+                  onChange={e => setAddForm({...addForm, parentName: e.target.value})}
+                  className="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  placeholder="VD: Nguyễn Văn B"
+                />
+              </div>
+              
+              <div className="pt-4 flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 rounded-lg font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 px-4 py-2.5 rounded-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-sm"
+                >
+                  Lưu & Tạo Form
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CHỈNH SỬA HỌC SINH */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                <Pencil size={20} className="text-indigo-600" /> Sửa Thông Tin Học Sinh
+              </h3>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl font-bold">
+                ✕
+              </button>
+            </div>
+            <form onSubmit={submitEditStudent} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Tên học sinh <span className="text-red-500">*</span></label>
+                <input 
+                  autoFocus
+                  type="text" 
+                  required
+                  value={editForm.name}
+                  onChange={e => setEditForm({...editForm, name: e.target.value})}
+                  className="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Môn học</label>
+                <input 
+                  type="text" 
+                  value={editForm.subject}
+                  onChange={e => setEditForm({...editForm, subject: e.target.value})}
+                  className="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Lớp</label>
+                <input 
+                  type="text" 
+                  value={editForm.className}
+                  onChange={e => setEditForm({...editForm, className: e.target.value})}
+                  className="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Tên phụ huynh</label>
+                <input 
+                  type="text" 
+                  value={editForm.parentName}
+                  onChange={e => setEditForm({...editForm, parentName: e.target.value})}
+                  className="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              
+              <div className="pt-4 flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 rounded-lg font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 px-4 py-2.5 rounded-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-sm"
+                >
+                  Lưu Thay Đổi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
