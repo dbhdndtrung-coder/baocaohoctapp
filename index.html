@@ -43,7 +43,7 @@
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                             <i class="fa-solid fa-user"></i>
                         </div>
-                        <input type="text" id="login-username" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="VD: giaovien hoặc ph_quangdao" required>
+                        <input type="text" id="login-username" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="abc" required>
                     </div>
                 </div>
                 <div>
@@ -237,27 +237,8 @@
         </main>
     </div>
 
-    <script type="module">
-        // --- TẢI SDK HỆ THỐNG VÀ THIẾT LẬP FIREBASE ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyCMmNJbYWxSSWP08Q9duJHTQXfltFL2alA",
-            authDomain: "bao-cao-hoc-tap.firebaseapp.com",
-            databaseURL: "https://bao-cao-hoc-tap-default-rtdb.firebaseio.com",
-            projectId: "bao-cao-hoc-tap",
-            storageBucket: "bao-cao-hoc-tap.firebasestorage.app",
-            messagingSenderId: "442761230761",
-            appId: "1:442761230761:web:fdfa562c873e721f62acb8",
-            measurementId: "G-WDMQSXS88R"
-        };
-
-        // Khởi tạo ứng dụng Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-
-        // --- MOCK DATA & STATE BAN ĐẦU ---
+    <script>
+        // --- 1. MOCK DATA & STATE ---
         const initialStudents = [
             {
                 id: 1,
@@ -289,7 +270,7 @@
 
         const state = {
             isAuthenticated: false,
-            userRole: null, // 'teacher' hoặc 'parent'
+            userRole: null, // 'teacher' or 'parent'
             students: [],
             activeStudentId: null,
             evalForm: { ability: '', attitudes: [] }
@@ -297,43 +278,32 @@
 
         let myChart = null;
 
-        // --- HÀM ĐỒNG BỘ DỮ LIỆU LÊN FIREBASE REALTIME ---
+        // --- HÀM LƯU DỮ LIỆU ---
         function saveData() {
-            set(ref(db, 'students'), state.students)
-                .catch(error => console.error("Lỗi đồng bộ Firebase:", error));
+            localStorage.setItem('studentDashboardData', JSON.stringify(state.students));
         }
 
-        // --- KHỞI TẠO VÀ LẮNG NGHE DỮ LIỆU REALTIME TỪ DATABASE ---
-        document.getElementById('input-eval-date').valueAsDate = new Date();
-
-        onValue(ref(db, 'students'), (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                // Đảm bảo dữ liệu luôn ở dạng mảng chuẩn
-                state.students = Array.isArray(data) ? data : Object.values(data);
+        // --- 2. INITIALIZATION ---
+        window.onload = () => {
+            // Tải dữ liệu từ LocalStorage nếu có, nếu không thì dùng dữ liệu mẫu
+            const savedData = localStorage.getItem('studentDashboardData');
+            if (savedData) {
+                state.students = JSON.parse(savedData);
             } else {
-                // Khởi tạo dữ liệu gốc nếu database trống
                 state.students = initialStudents;
                 saveData();
             }
 
-            // Đồng bộ bộ lọc mảng trống để tránh lỗi runtime (do Firebase tự xóa mảng rỗng)
-            state.students.forEach(s => {
-                if (!s.scores) s.scores = [];
-                if (!s.evaluations) s.evaluations = [];
-            });
-
-            // Gán active student id nếu chưa có hoặc id cũ bị xóa
-            if (state.students.length > 0) {
-                if (!state.activeStudentId || !state.students.find(s => s.id === state.activeStudentId)) {
-                    state.activeStudentId = state.students[0].id;
-                }
+            if(state.students.length > 0) {
+                state.activeStudentId = state.students[0].id;
             }
 
+            // Đặt ngày mặc định cho form đánh giá
+            document.getElementById('input-eval-date').valueAsDate = new Date();
             renderApp();
-        });
+        };
 
-        // --- AUTHENTICATION ---
+        // --- 3. AUTHENTICATION ---
         window.handleLogin = (e) => {
             e.preventDefault();
             const user = document.getElementById('login-username').value.trim();
@@ -347,7 +317,7 @@
                 errDiv.classList.add('hide');
                 renderApp();
             } else {
-                // Kiểm tra tài khoản Phụ huynh
+                // Check parent
                 const student = state.students.find(s => s.parentUsername === user && s.parentPassword === pass);
                 if (student) {
                     state.userRole = 'parent';
@@ -369,7 +339,7 @@
             renderApp();
         };
 
-        // --- RENDER LOGIC ---
+        // --- 4. RENDER LOGIC ---
         function renderApp() {
             if (state.isAuthenticated) {
                 document.getElementById('login-screen').classList.add('hide');
@@ -386,7 +356,7 @@
         }
 
         function calculateAverage(scores) {
-            if (!scores || scores.length === 0) return 0;
+            if (scores.length === 0) return 0;
             const sum = scores.reduce((acc, curr) => acc + curr.score, 0);
             return (sum / scores.length).toFixed(1);
         }
@@ -395,7 +365,7 @@
             const student = getActiveStudent();
             if (!student) return;
 
-            // Hiển thị thanh tabs chọn học sinh nếu là giáo viên
+            // Render Teacher Tabs if teacher
             const tabsContainer = document.getElementById('teacher-tabs-container');
             if (state.userRole === 'teacher') {
                 tabsContainer.classList.remove('hide');
@@ -404,7 +374,7 @@
                 tabsContainer.classList.add('hide');
             }
 
-            // Cập nhật Header thông tin
+            // Update Header
             document.getElementById('header-student-name').innerText = student.name;
             document.getElementById('header-student-subject').innerText = student.subject;
             document.getElementById('header-student-class').innerText = student.className;
@@ -412,7 +382,7 @@
             const avg = calculateAverage(student.scores);
             document.getElementById('header-avg-score').innerText = avg;
 
-            // Phân quyền hiển thị giao diện cấu hình
+            // Role Badges & Controls
             const roleBadge = document.getElementById('role-badge');
             const editBtn = document.getElementById('btn-edit-student');
             const parentConfig = document.getElementById('parent-config-card');
@@ -425,7 +395,7 @@
                 document.getElementById('parent-username').innerText = student.parentUsername;
                 document.getElementById('parent-password').innerText = student.parentPassword;
                 
-                // Mở form nhập liệu
+                // Show Forms
                 document.getElementById('teacher-score-form').classList.remove('hide');
                 document.getElementById('teacher-eval-form').classList.remove('hide');
                 document.getElementById('score-card-title').innerText = "Quản Lý Điểm Số";
@@ -435,7 +405,7 @@
                 editBtn.classList.add('hide');
                 parentConfig.classList.add('hide');
                 
-                // Khóa form nhập liệu
+                // Hide Forms
                 document.getElementById('teacher-score-form').classList.add('hide');
                 document.getElementById('teacher-eval-form').classList.add('hide');
                 document.getElementById('score-card-title').innerText = "Chi Tiết Điểm Số";
@@ -464,7 +434,7 @@
 
         function renderScoreList(scores) {
             const listDiv = document.getElementById('score-list');
-            if (!scores || scores.length === 0) {
+            if (scores.length === 0) {
                 listDiv.innerHTML = `<p class="text-sm text-slate-500 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">Chưa có bài kiểm tra nào.</p>`;
                 return;
             }
@@ -506,7 +476,7 @@
 
         function renderEvalList(evals) {
             const listDiv = document.getElementById('eval-list');
-            if (!evals || evals.length === 0) {
+            if (evals.length === 0) {
                 listDiv.innerHTML = `<p class="text-sm text-slate-500 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">Chưa có nhận xét nào.</p>`;
                 return;
             }
@@ -517,16 +487,15 @@
                 const realIndex = evals.length - 1 - revIndex;
                 let deleteBtn = state.userRole === 'teacher' ? `<button onclick="window.deleteEvaluation(${realIndex})" class="text-slate-400 hover:text-red-500 transition-colors p-1.5 hover:bg-red-50 rounded-md" title="Xóa"><i class="fa-solid fa-trash"></i></button>` : '';
                 
+                // Format date manually if needed
                 let d = new Date(item.date);
                 let dateStr = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
 
                 let tagsHtml = '';
                 if(item.ability) tagsHtml += `<span class="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">${item.ability}</span>`;
-                if(item.attitudes) {
-                    item.attitudes.forEach(att => {
-                        tagsHtml += `<span class="text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200">${att}</span>`;
-                    });
-                }
+                item.attitudes.forEach(att => {
+                    tagsHtml += `<span class="text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200">${att}</span>`;
+                });
 
                 html += `
                     <div class="p-4 bg-white rounded-xl border border-slate-200 shadow-sm relative hover:border-indigo-200 transition-colors">
@@ -541,7 +510,7 @@
             listDiv.innerHTML = html;
         }
 
-        // --- ACTIONS HOOK VÀO WINDOW OBJECT ---
+        // --- 5. ACTIONS & MUTATIONS ---
         window.switchTab = (id) => {
             state.activeStudentId = id;
             renderDashboard();
@@ -570,8 +539,8 @@
             
             state.students.push(newStudent);
             state.activeStudentId = newStudent.id;
+            saveData(); // Lưu ngay vào bộ nhớ
             
-            saveData();
             alert(`Đã thêm học sinh thành công!\n\nTài khoản phụ huynh là: ${defaultUsername}\nMật khẩu: 123`);
             renderDashboard();
         };
@@ -661,7 +630,7 @@
                 comment: comment
             });
 
-            // Reset form nội bộ
+            // Reset form
             state.evalForm = { ability: '', attitudes: [] };
             document.getElementById('input-eval-comment').value = '';
             
@@ -682,9 +651,11 @@
             }
         };
 
-        // --- CHART.JS INTEGRATION ---
+        // --- 6. CHART.JS INTEGRATION ---
         function renderChart(scores, avg) {
             const ctx = document.getElementById('scoreChart').getContext('2d');
+            
+            // Hủy chart cũ nếu đã tồn tại để vẽ lại
             if (myChart) myChart.destroy();
 
             const labels = scores.map(s => s.name);
@@ -702,7 +673,7 @@
                         borderWidth: 3,
                         pointRadius: 5,
                         pointHoverRadius: 8,
-                        tension: 0.2
+                        tension: 0.2 // Bo cong đường line nhẹ
                     }]
                 },
                 options: {
@@ -736,6 +707,7 @@
                     }
                 }
             };
+
             myChart = new Chart(ctx, config);
         }
     </script>
