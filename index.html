@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Đánh Giá Học Tập Học Sinh</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js & Annotation Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+        
+        .hide { display: none !important; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+    <!-- ========================================== -->
+    <!-- MÀN HÌNH ĐĂNG NHẬP                         -->
+    <!-- ========================================== -->
+    <div id="login-screen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full border border-slate-100">
+            <div class="flex flex-col items-center mb-8">
+                <div class="bg-indigo-100 p-4 rounded-full text-indigo-600 mb-3 text-2xl">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-800 text-center">Cổng Đánh Giá Học Tập</h1>
+                <p class="text-slate-500 text-sm mt-2 text-center">Đăng nhập để xem hoặc quản lý hồ sơ học sinh</p>
+            </div>
+
+            <form id="login-form" onsubmit="window.handleLogin(event)" class="space-y-5">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Tài khoản</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <input type="text" id="login-username" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="VD: nguyenvana" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Mật khẩu</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-lock"></i>
+                        </div>
+                        <input type="password" id="login-password" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="••••••••" required>
+                    </div>
+                </div>
+
+                <div id="login-error" class="text-sm text-red-500 flex items-center gap-1.5 p-2 bg-red-50 rounded-lg hide">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <span id="login-error-text">Sai tài khoản hoặc mật khẩu!</span>
+                </div>
+
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-sm mt-2">
+                    Đăng Nhập
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MÀN HÌNH DASHBOARD CHÍNH                   -->
+    <!-- ========================================== -->
+    <div id="dashboard-screen" class="hide p-4 md:p-8">
+        
+        <!-- Teacher Tabs -->
+        <div id="teacher-tabs-container" class="max-w-7xl mx-auto mb-6 hide">
+            <div id="student-tabs" class="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                <!-- Tabs rendered by JS -->
+            </div>
+        </div>
+
+        <!-- Header -->
+        <header class="max-w-7xl mx-auto mb-8 bg-white p-5 lg:p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <!-- Profile -->
+                <div class="flex items-center gap-4 lg:gap-5">
+                    <div class="h-14 w-14 lg:h-16 lg:w-16 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 text-2xl shadow-inner">
+                        <i class="fa-solid fa-graduation-cap"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-3">
+                            <h1 id="header-student-name" class="text-2xl lg:text-3xl font-extrabold text-slate-900">...</h1>
+                            <button id="btn-edit-student" onclick="window.editStudent()" class="hide text-slate-400 hover:text-indigo-600 p-1 transition-colors" title="Chỉnh sửa thông tin">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                        </div>
+                        <p class="text-slate-500 mt-1 font-medium flex items-center gap-2 text-sm lg:text-base">
+                            Môn: <span id="header-student-subject" class="font-bold text-slate-700">...</span> | Lớp: <span id="header-student-class" class="font-bold text-indigo-600 px-2 py-0.5 bg-indigo-50 rounded-md">...</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Stats & Actions -->
+                <div class="flex flex-col lg:flex-row gap-4 lg:items-center">
+                    
+                    <!-- Parent Account Config (Teacher Only) -->
+                    <div id="parent-config-card" class="bg-amber-50 border border-amber-200 p-2.5 rounded-xl flex items-center justify-between lg:justify-start gap-3 shadow-sm flex-1 lg:flex-none hide">
+                        <div class="flex items-center gap-3">
+                            <div class="p-1.5 bg-amber-100 rounded-lg text-amber-700 hidden sm:block">
+                                <i class="fa-solid fa-key"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] lg:text-[11px] text-amber-700 font-bold uppercase tracking-wider">Tài khoản Phụ Huynh: <span id="parent-real-name">...</span></p>
+                                <p class="text-xs lg:text-sm font-medium text-amber-900">
+                                    TK: <span id="parent-username" class="font-bold">...</span> | MK: <span id="parent-password" class="font-bold">...</span>
+                                </p>
+                            </div>
+                        </div>
+                        <button onclick="window.editParentAuth()" class="p-1.5 bg-white text-amber-600 hover:bg-amber-100 hover:text-amber-700 rounded-lg shadow-sm transition-colors border border-amber-100">
+                            <i class="fa-solid fa-gear"></i>
+                        </button>
+                    </div>
+
+                    <!-- Global Stats -->
+                    <div class="hidden sm:flex gap-4">
+                        <div class="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex items-center gap-3">
+                            <div>
+                                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Điểm TB</p>
+                                <p id="header-avg-score" class="text-xl font-bold text-indigo-600 leading-none mt-1">0.0</p>
+                            </div>
+                            <div class="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500">
+                                <i class="fa-solid fa-arrow-trend-up"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Account Logout -->
+                    <div class="bg-slate-100 p-1.5 rounded-xl flex items-center justify-between lg:justify-start shadow-inner">
+                        <div class="px-4 py-2 flex items-center gap-2 text-sm" id="role-badge">
+                            <!-- Injected by JS -->
+                        </div>
+                        <button onclick="window.logout()" class="px-3 py-1.5 bg-white text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg text-sm font-bold transition-all shadow-sm border border-slate-200 flex items-center gap-1.5 ml-2">
+                            <i class="fa-solid fa-right-from-bracket"></i> Thoát
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Layout Grid -->
+        <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- LEFT COLUMN: QUANTITATIVE -->
+            <div class="lg:col-span-7 space-y-6">
+                <!-- Chart Card -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center gap-3 bg-gray-50/50">
+                        <div class="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><i class="fa-solid fa-chart-line"></i></div>
+                        <h2 class="text-lg font-bold text-gray-800">Tiến Độ Học Tập</h2>
+                    </div>
+                    <div class="p-6 h-[350px]">
+                        <canvas id="scoreChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Score Management Card -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center gap-3 bg-gray-50/50">
+                        <div class="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><i class="fa-solid fa-book-open"></i></div>
+                        <h2 id="score-card-title" class="text-lg font-bold text-gray-800">Chi Tiết Điểm Số</h2>
+                    </div>
+                    <div class="p-6 flex-1 flex flex-col">
+                        
+                        <!-- Teacher Form -->
+                        <div id="teacher-score-form" class="mb-8 pb-6 border-b border-gray-100 hide">
+                            <form onsubmit="window.handleAddScore(event)" class="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                                <div class="flex-1 w-full">
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Tên bài kiểm tra</label>
+                                    <input type="text" id="input-test-name" class="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="VD: Kiểm tra 15 phút..." required>
+                                </div>
+                                <div class="w-full sm:w-32">
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Điểm số</label>
+                                    <input type="number" step="0.1" min="0" max="10" id="input-test-score" class="w-full rounded-lg border-slate-300 border px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="0 - 10" required>
+                                </div>
+                                <button type="submit" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg px-6 py-2.5 transition-colors flex items-center justify-center gap-2 whitespace-nowrap">
+                                    <i class="fa-solid fa-plus"></i> Thêm
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Score List -->
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wide">Lịch sử điểm đã nhập</h3>
+                            <div id="score-list" class="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                <!-- Scores rendered by JS -->
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: QUALITATIVE -->
+            <div class="lg:col-span-5 h-full">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center gap-3 bg-gray-50/50">
+                        <div class="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><i class="fa-solid fa-comment-dots"></i></div>
+                        <h2 id="eval-card-title" class="text-lg font-bold text-gray-800">Nhận Xét Từ Giáo Viên</h2>
+                    </div>
+                    <div class="p-6 flex-1 flex flex-col">
+                        
+                        <!-- Teacher Form -->
+                        <div id="teacher-eval-form" class="mb-8 pb-6 border-b border-gray-100 flex flex-col gap-6 hide">
+                            <div class="space-y-6">
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wide flex items-center gap-2">
+                                        <i class="fa-solid fa-calendar text-indigo-500"></i> Chọn Ngày Nhận Xét
+                                    </label>
+                                    <input type="date" id="input-eval-date" class="w-full rounded-xl border-slate-300 border px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50/50 cursor-pointer font-medium text-slate-700">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wide">Khả Năng Tiếp Thu</label>
+                                    <div id="ability-tags" class="flex flex-wrap gap-2">
+                                        <!-- Rendered by JS -->
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wide">Ý Thức Học Tập <span class="text-slate-400 font-normal text-xs normal-case">(Chọn nhiều)</span></label>
+                                    <div id="attitude-tags" class="flex flex-wrap gap-2">
+                                        <!-- Rendered by JS -->
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Nhận Xét Chi Tiết</label>
+                                    <textarea id="input-eval-comment" rows="4" class="w-full rounded-xl border-slate-300 border p-4 focus:ring-2 focus:ring-indigo-500 outline-none resize-y min-h-[100px] bg-slate-50/50" placeholder="Nhập những nhận xét chi tiết..."></textarea>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between">
+                                <span id="save-status" class="text-sm text-slate-400 italic">Lưu vào hồ sơ.</span>
+                                <button onclick="window.handleSaveEvaluation()" class="flex items-center gap-2 font-medium rounded-lg px-6 py-2.5 transition-all bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
+                                    <i class="fa-solid fa-floppy-disk"></i> Lưu Đánh Giá
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Eval List -->
+                        <div class="flex-1 flex flex-col">
+                            <h3 class="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wide">Lịch sử nhận xét</h3>
+                            <div id="eval-list" class="space-y-3 flex-1 overflow-y-auto pr-2 max-h-[500px] custom-scrollbar">
+                                <!-- Rendered by JS -->
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- 1. MOCK DATA & STATE ---
+        const initialStudents = [
+            {
+                id: 1,
+                name: 'Quang Đạo',
+                subject: 'Toán Học',
+                className: '12A1',
+                parentName: 'Phụ huynh em Đạo',
+                parentUsername: 'ph_quangdao',
+                parentPassword: '123',
+                scores: [
+                    { name: 'Khảo sát đầu năm', score: 6.5 },
+                    { name: 'Giữa kì 1', score: 8.0 }
+                ],
+                evaluations: [
+                    {
+                        date: '2023-09-15',
+                        ability: 'Tiếp thu nhanh',
+                        attitudes: ['Tự giác chăm chỉ', 'Hăng hái phát biểu'],
+                        comment: 'Em Đạo có khởi đầu rất tốt, cần phát huy.'
+                    }
+                ]
+            }
+        ];
+
+        const tagsData = {
+            abilities: ['Tiếp thu nhanh', 'Trung bình', 'Cần giảng lại nhiều lần'],
+            attitudes: ['Tự giác chăm chỉ', 'Hăng hái phát biểu', 'Còn mất tập trung', 'Cần nhắc nhở']
+        };
+
+        const state = {
+            isAuthenticated: false,
+            userRole: null, // 'teacher' or 'parent'
+            students: [],
+            activeStudentId: null,
+            evalForm: { ability: '', attitudes: [] }
+        };
+
+        let myChart = null;
+
+        // --- HÀM LƯU DỮ LIỆU ---
+        function saveData() {
+            localStorage.setItem('studentDashboardData', JSON.stringify(state.students));
+        }
+
+        // --- 2. INITIALIZATION ---
+        window.onload = () => {
+            // Tải dữ liệu từ LocalStorage nếu có, nếu không thì dùng dữ liệu mẫu
+            const savedData = localStorage.getItem('studentDashboardData');
+            if (savedData) {
+                state.students = JSON.parse(savedData);
+            } else {
+                state.students = initialStudents;
+                saveData();
+            }
+
+            if(state.students.length > 0) {
+                state.activeStudentId = state.students[0].id;
+            }
+
+            // Đặt ngày mặc định cho form đánh giá
+            document.getElementById('input-eval-date').valueAsDate = new Date();
+            renderApp();
+        };
+
+        // --- 3. AUTHENTICATION ---
+        window.handleLogin = (e) => {
+            e.preventDefault();
+            const user = document.getElementById('login-username').value.trim();
+            const pass = document.getElementById('login-password').value.trim();
+            const errDiv = document.getElementById('login-error');
+
+            if (user === 'giaovien' && pass === '123') {
+                state.userRole = 'teacher';
+                state.isAuthenticated = true;
+                if (state.students.length > 0) state.activeStudentId = state.students[0].id;
+                errDiv.classList.add('hide');
+                renderApp();
+            } else {
+                // Check parent
+                const student = state.students.find(s => s.parentUsername === user && s.parentPassword === pass);
+                if (student) {
+                    state.userRole = 'parent';
+                    state.activeStudentId = student.id;
+                    state.isAuthenticated = true;
+                    errDiv.classList.add('hide');
+                    renderApp();
+                } else {
+                    errDiv.classList.remove('hide');
+                }
+            }
+        };
+
+        window.logout = () => {
+            state.isAuthenticated = false;
+            state.userRole = null;
+            document.getElementById('login-username').value = '';
+            document.getElementById('login-password').value = '';
+            renderApp();
+        };
+
+        // --- 4. RENDER LOGIC ---
+        function renderApp() {
+            if (state.isAuthenticated) {
+                document.getElementById('login-screen').classList.add('hide');
+                document.getElementById('dashboard-screen').classList.remove('hide');
+                renderDashboard();
+            } else {
+                document.getElementById('login-screen').classList.remove('hide');
+                document.getElementById('dashboard-screen').classList.add('hide');
+            }
+        }
+
+        function getActiveStudent() {
+            return state.students.find(s => s.id === state.activeStudentId);
+        }
+
+        function calculateAverage(scores) {
+            if (scores.length === 0) return 0;
+            const sum = scores.reduce((acc, curr) => acc + curr.score, 0);
+            return (sum / scores.length).toFixed(1);
+        }
+
+        function renderDashboard() {
+            const student = getActiveStudent();
+            if (!student) return;
+
+            // Render Teacher Tabs if teacher
+            const tabsContainer = document.getElementById('teacher-tabs-container');
+            if (state.userRole === 'teacher') {
+                tabsContainer.classList.remove('hide');
+                renderTabs();
+            } else {
+                tabsContainer.classList.add('hide');
+            }
+
+            // Update Header
+            document.getElementById('header-student-name').innerText = student.name;
+            document.getElementById('header-student-subject').innerText = student.subject;
+            document.getElementById('header-student-class').innerText = student.className;
+            
+            const avg = calculateAverage(student.scores);
+            document.getElementById('header-avg-score').innerText = avg;
+
+            // Role Badges & Controls
+            const roleBadge = document.getElementById('role-badge');
+            const editBtn = document.getElementById('btn-edit-student');
+            const parentConfig = document.getElementById('parent-config-card');
+            
+            if (state.userRole === 'teacher') {
+                roleBadge.innerHTML = `<span class="text-indigo-700 font-bold"><i class="fa-solid fa-graduation-cap"></i> Giáo Viên</span>`;
+                editBtn.classList.remove('hide');
+                parentConfig.classList.remove('hide');
+                document.getElementById('parent-real-name').innerText = student.parentName;
+                document.getElementById('parent-username').innerText = student.parentUsername;
+                document.getElementById('parent-password').innerText = student.parentPassword;
+                
+                // Show Forms
+                document.getElementById('teacher-score-form').classList.remove('hide');
+                document.getElementById('teacher-eval-form').classList.remove('hide');
+                document.getElementById('score-card-title').innerText = "Quản Lý Điểm Số";
+                document.getElementById('eval-card-title').innerText = "Đánh Giá Học Sinh";
+            } else {
+                roleBadge.innerHTML = `<span class="text-emerald-700 font-bold"><i class="fa-solid fa-users"></i> Phụ Huynh</span>`;
+                editBtn.classList.add('hide');
+                parentConfig.classList.add('hide');
+                
+                // Hide Forms
+                document.getElementById('teacher-score-form').classList.add('hide');
+                document.getElementById('teacher-eval-form').classList.add('hide');
+                document.getElementById('score-card-title').innerText = "Chi Tiết Điểm Số";
+                document.getElementById('eval-card-title').innerText = "Nhận Xét Từ Giáo Viên";
+            }
+
+            renderChart(student.scores, avg);
+            renderScoreList(student.scores);
+            renderEvalFormTags();
+            renderEvalList(student.evaluations);
+        }
+
+        function renderTabs() {
+            const tabsDiv = document.getElementById('student-tabs');
+            let html = '';
+            
+            state.students.forEach(s => {
+                const isActive = s.id === state.activeStudentId;
+                const activeClass = isActive ? 'bg-indigo-600 text-white shadow-md border-indigo-600' : 'bg-white text-slate-600 hover:bg-slate-100 border-slate-200';
+                html += `<button onclick="window.switchTab(${s.id})" class="whitespace-nowrap px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 border ${activeClass}"><i class="fa-solid fa-user"></i> ${s.name}</button>`;
+            });
+            
+            html += `<button onclick="window.addStudent()" class="whitespace-nowrap px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 bg-slate-200 text-slate-700 hover:bg-slate-300 border border-transparent border-dashed ml-2"><i class="fa-solid fa-user-plus"></i> Thêm Học Sinh</button>`;
+            tabsDiv.innerHTML = html;
+        }
+
+        function renderScoreList(scores) {
+            const listDiv = document.getElementById('score-list');
+            if (scores.length === 0) {
+                listDiv.innerHTML = `<p class="text-sm text-slate-500 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">Chưa có bài kiểm tra nào.</p>`;
+                return;
+            }
+
+            let html = '';
+            scores.forEach((item, index) => {
+                let deleteBtn = state.userRole === 'teacher' ? `<button onclick="window.deleteScore(${index})" class="text-slate-400 hover:text-red-500 transition-colors p-1" title="Xóa"><i class="fa-solid fa-trash"></i></button>` : '';
+                html += `
+                    <div class="flex justify-between items-center p-3 bg-white rounded-lg border border-slate-200 shadow-sm hover:border-indigo-200 transition-colors">
+                        <span class="font-medium text-slate-700">${item.name}</span>
+                        <div class="flex items-center gap-3">
+                            <span class="font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-md">${item.score}</span>
+                            ${deleteBtn}
+                        </div>
+                    </div>`;
+            });
+            listDiv.innerHTML = html;
+        }
+
+        function renderEvalFormTags() {
+            // Render Abilities
+            let abilityHtml = '';
+            tagsData.abilities.forEach(ab => {
+                const isSelected = state.evalForm.ability === ab;
+                const cls = isSelected ? "bg-indigo-50 text-indigo-700 border-indigo-200 ring-1 ring-indigo-500/20" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50";
+                abilityHtml += `<button type="button" onclick="window.selectAbility('${ab}')" class="px-4 py-2 rounded-full text-sm font-medium border transition-all ${cls}">${ab}</button>`;
+            });
+            document.getElementById('ability-tags').innerHTML = abilityHtml;
+
+            // Render Attitudes
+            let attHtml = '';
+            tagsData.attitudes.forEach(att => {
+                const isSelected = state.evalForm.attitudes.includes(att);
+                const cls = isSelected ? "bg-indigo-50 text-indigo-700 border-indigo-200 ring-1 ring-indigo-500/20" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50";
+                attHtml += `<button type="button" onclick="window.toggleAttitude('${att}')" class="px-4 py-2 rounded-full text-sm font-medium border transition-all ${cls}">${att}</button>`;
+            });
+            document.getElementById('attitude-tags').innerHTML = attHtml;
+        }
+
+        function renderEvalList(evals) {
+            const listDiv = document.getElementById('eval-list');
+            if (evals.length === 0) {
+                listDiv.innerHTML = `<p class="text-sm text-slate-500 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">Chưa có nhận xét nào.</p>`;
+                return;
+            }
+
+            let html = '';
+            const reversedEvals = [...evals].reverse();
+            reversedEvals.forEach((item, revIndex) => {
+                const realIndex = evals.length - 1 - revIndex;
+                let deleteBtn = state.userRole === 'teacher' ? `<button onclick="window.deleteEvaluation(${realIndex})" class="text-slate-400 hover:text-red-500 transition-colors p-1.5 hover:bg-red-50 rounded-md" title="Xóa"><i class="fa-solid fa-trash"></i></button>` : '';
+                
+                // Format date manually if needed
+                let d = new Date(item.date);
+                let dateStr = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+
+                let tagsHtml = '';
+                if(item.ability) tagsHtml += `<span class="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">${item.ability}</span>`;
+                item.attitudes.forEach(att => {
+                    tagsHtml += `<span class="text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200">${att}</span>`;
+                });
+
+                html += `
+                    <div class="p-4 bg-white rounded-xl border border-slate-200 shadow-sm relative hover:border-indigo-200 transition-colors">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="font-bold text-indigo-700 flex items-center gap-2 text-sm bg-indigo-50 px-3 py-1 rounded-md"><i class="fa-solid fa-calendar text-xs"></i> ${dateStr}</span>
+                            ${deleteBtn}
+                        </div>
+                        <div class="flex flex-wrap gap-2 mb-3">${tagsHtml}</div>
+                        ${item.comment ? `<p class="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">${item.comment}</p>` : ''}
+                    </div>`;
+            });
+            listDiv.innerHTML = html;
+        }
+
+        // --- 5. ACTIONS & MUTATIONS ---
+        window.switchTab = (id) => {
+            state.activeStudentId = id;
+            renderDashboard();
+        };
+
+        window.addStudent = () => {
+            const name = prompt("Nhập TÊN học sinh mới:");
+            if (!name) return;
+            const subject = prompt("Nhập MÔN học:");
+            const className = prompt("Nhập LỚP học:");
+            const parentName = prompt("Nhập TÊN phụ huynh:");
+            
+            const normalizedName = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s/g, '');
+            const defaultUsername = `ph_${normalizedName}`;
+            
+            const newStudent = {
+                id: Date.now(),
+                name: name,
+                subject: subject || 'Chưa cập nhật',
+                className: className || 'Chưa xếp lớp',
+                parentName: parentName || 'Phụ huynh ' + name,
+                parentUsername: defaultUsername,
+                parentPassword: '123',
+                scores: [], evaluations: []
+            };
+            
+            state.students.push(newStudent);
+            state.activeStudentId = newStudent.id;
+            saveData(); // Lưu ngay vào bộ nhớ
+            
+            alert(`Đã thêm học sinh thành công!\n\nTài khoản phụ huynh là: ${defaultUsername}\nMật khẩu: 123`);
+            renderDashboard();
+        };
+
+        window.editStudent = () => {
+            const student = getActiveStudent();
+            const newName = prompt("Sửa TÊN học sinh:", student.name);
+            if(newName) student.name = newName;
+            
+            const newSubj = prompt("Sửa MÔN học:", student.subject);
+            if(newSubj) student.subject = newSubj;
+            
+            const newClass = prompt("Sửa LỚP:", student.className);
+            if(newClass) student.className = newClass;
+            
+            const newParent = prompt("Sửa TÊN phụ huynh:", student.parentName);
+            if(newParent) student.parentName = newParent;
+
+            saveData();
+            renderDashboard();
+        };
+
+        window.editParentAuth = () => {
+            const student = getActiveStudent();
+            const newUsername = prompt("Nhập tài khoản phụ huynh mới:", student.parentUsername);
+            if (!newUsername) return;
+            const newPassword = prompt("Nhập mật khẩu mới:", student.parentPassword);
+            if (!newPassword) return;
+            
+            student.parentUsername = newUsername;
+            student.parentPassword = newPassword;
+            
+            saveData();
+            alert("Đã cập nhật!");
+            renderDashboard();
+        };
+
+        window.handleAddScore = (e) => {
+            e.preventDefault();
+            const name = document.getElementById('input-test-name').value;
+            const score = parseFloat(document.getElementById('input-test-score').value);
+            
+            const student = getActiveStudent();
+            student.scores.push({ name, score });
+            
+            document.getElementById('input-test-name').value = '';
+            document.getElementById('input-test-score').value = '';
+            saveData();
+            renderDashboard();
+        };
+
+        window.deleteScore = (index) => {
+            if(confirm('Xóa bài kiểm tra này?')){
+                const student = getActiveStudent();
+                student.scores.splice(index, 1);
+                saveData();
+                renderDashboard();
+            }
+        };
+
+        window.selectAbility = (val) => {
+            state.evalForm.ability = state.evalForm.ability === val ? '' : val;
+            renderEvalFormTags();
+        };
+
+        window.toggleAttitude = (val) => {
+            const idx = state.evalForm.attitudes.indexOf(val);
+            if (idx > -1) state.evalForm.attitudes.splice(idx, 1);
+            else state.evalForm.attitudes.push(val);
+            renderEvalFormTags();
+        };
+
+        window.handleSaveEvaluation = () => {
+            const date = document.getElementById('input-eval-date').value;
+            const comment = document.getElementById('input-eval-comment').value;
+            
+            if (!state.evalForm.ability && state.evalForm.attitudes.length === 0 && !comment.trim()) {
+                alert('Vui lòng nhập nội dung đánh giá!');
+                return;
+            }
+
+            const student = getActiveStudent();
+            student.evaluations.push({
+                date: date,
+                ability: state.evalForm.ability,
+                attitudes: [...state.evalForm.attitudes],
+                comment: comment
+            });
+
+            // Reset form
+            state.evalForm = { ability: '', attitudes: [] };
+            document.getElementById('input-eval-comment').value = '';
+            
+            const statusDiv = document.getElementById('save-status');
+            statusDiv.innerHTML = '<span class="text-emerald-600 font-medium"><i class="fa-solid fa-circle-check"></i> Đã lưu thành công!</span>';
+            setTimeout(() => { statusDiv.innerHTML = '<span class="text-sm text-slate-400 italic">Lưu vào hồ sơ.</span>'; }, 3000);
+
+            saveData();
+            renderDashboard();
+        };
+
+        window.deleteEvaluation = (index) => {
+            if(confirm('Xóa nhận xét này?')){
+                const student = getActiveStudent();
+                student.evaluations.splice(index, 1);
+                saveData();
+                renderDashboard();
+            }
+        };
+
+        // --- 6. CHART.JS INTEGRATION ---
+        function renderChart(scores, avg) {
+            const ctx = document.getElementById('scoreChart').getContext('2d');
+            
+            // Hủy chart cũ nếu đã tồn tại để vẽ lại
+            if (myChart) myChart.destroy();
+
+            const labels = scores.map(s => s.name);
+            const data = scores.map(s => s.score);
+
+            const config = {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Điểm số',
+                        data: data,
+                        borderColor: '#4f46e5',
+                        backgroundColor: '#4f46e5',
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        pointHoverRadius: 8,
+                        tension: 0.2 // Bo cong đường line nhẹ
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 0, max: 10, grid: { borderDash: [3, 3] } },
+                        x: { grid: { display: false } }
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        annotation: {
+                            annotations: scores.length > 0 ? {
+                                line1: {
+                                    type: 'line',
+                                    yMin: avg,
+                                    yMax: avg,
+                                    borderColor: '#f59e0b',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    label: {
+                                        display: true,
+                                        content: `TB: ${avg}`,
+                                        position: 'start',
+                                        backgroundColor: 'rgba(245, 158, 11, 0.9)',
+                                        font: { weight: 'bold' }
+                                    }
+                                }
+                            } : {}
+                        }
+                    }
+                }
+            };
+
+            myChart = new Chart(ctx, config);
+        }
+    </script>
+</body>
+</html>
